@@ -19,14 +19,9 @@ case "${DATASET}" in
     DATASET_WITH_DATA="RoG-cwq/data"
     MAX_HOPS=4
     ;;
-  metaqa)
-    DATASET_NAME="MetaQA"
-    DATASET_WITH_DATA="MetaQA/data"
-    MAX_HOPS=4
-    ;;
   *)
     echo "[ERROR] Unknown DATASET: ${DATASET}"
-    echo "Supported values: webqsp, cwq, metaqa"
+    echo "Supported values: webqsp, cwq"
     exit 1
     ;;
 esac
@@ -34,12 +29,11 @@ esac
 DATA_ROOT=${DATA_ROOT:-datasets}
 OUTPUT_ROOT=${OUTPUT_ROOT:-outputs}
 MODEL_ROOT=${MODEL_ROOT:-models}
-CHECKPOINT_ROOT=${CHECKPOINT_ROOT:-checkpoints}
 
-ONTOLOGY_PATH=${ONTOLOGY_PATH:-${DATA_ROOT}/ontology_triples_general_buquan_final.json}
+ONTOLOGY_PATH=${ONTOLOGY_PATH:-${DATA_ROOT}/ontology_graph_freebase.json}
 PROMPT_PATH=${PROMPT_PATH:-prompts/llama2.txt}
 SBERT_MODEL=${SBERT_MODEL:-${MODEL_ROOT}/all-mpnet-base-v2}
-TAIL_MODEL_DIR=${TAIL_MODEL_DIR:-${CHECKPOINT_ROOT}/tail_type_model_${DATASET}}
+TAIL_MODEL_DIR=${TAIL_MODEL_DIR:-${MODEL_ROOT}/OPI_tail_types_llama2}
 TAIL_MODEL_NAME=${TAIL_MODEL_NAME:-tail_type_model_${DATASET}}
 
 TAIL_PRED_ROOT="${OUTPUT_ROOT}/tail_type_predictions"
@@ -90,8 +84,8 @@ python src/qa_prediction/iterative_answer_refinement.py \
   --predict_path "${FINAL_OUTPUT_ROOT}" \
   --rule_path "${RETRIEVAL_PATH}" \
   --openai_api_key "${OPENAI_API_KEY:-}" \
-  --openai_base_url "${OPENAI_BASE_URL:-https://api.openai.com/v1}" \
-  --openai_model "${OPENAI_MODEL:-gpt-4o}" \
+  --openai_base_url "${OPENAI_BASE_URL:-}" \
+  --openai_model "${OPENAI_MODEL:-DeepSeek-V3-250324}" \
   --openai_temperature 0.2 \
   --openai_max_tokens 128 \
   --max_return 5 \
