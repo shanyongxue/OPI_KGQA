@@ -93,8 +93,8 @@ def process_data(data, rel2edges, remove_duplicate=False):
                 tail_types |= {t for _, t in rel2edges.get(last_rel, set())}
 
     samples = [{"question": question, "tail_type": tp} for tp in sorted(tail_types)]
-    if len(strict_pairs_all)==0:
-        print("question:{}, num_strict_tail_types: {}, num_final_tail_types: {}".format(question, len(strict_pairs_all), len(tail_types)))
+    # if len(strict_pairs_all)==0:
+    #     print("question:{}, num_strict_tail_types: {}, num_final_tail_types: {}".format(question, len(strict_pairs_all), len(tail_types)))
     return samples
 
 
