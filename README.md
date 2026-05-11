@@ -1,14 +1,16 @@
-# ORBIT
+# OPI
 
-This repository provides the implementation of **ORBIT**, an ontology-guided framework for multi-hop knowledge graph question answering. ORBIT first predicts answer-side entity types, then performs ontology-guided bidirectional retrieval to collect candidate reasoning paths, and finally applies iterative answer refinement to generate final answers.
+This repository provides the implementation of **OPI**, an ontology-guided evidence-path inference framework for multi-hop knowledge graph question answering.
+
+OPI predicts answer-side entity types, retrieves ontology-compatible reasoning paths, and refines final answers through an iterative generator-refiner process.
 
 ## Overview
 
-ORBIT consists of three main components:
+OPI contains three main stages:
 
-1. **Ontology Graph Construction**: introduces a relation-centric ontology graph to capture the head and tail entity types for each relation
-2. **Ontology-guided bidirectional retrieval**: uses predicted answer types and ontology relation signatures to retrieve compact reasoning evidence from the knowledge graph.
-3. **Iterative answer refinement**: uses a generator-refiner loop to produce and revise final answers based on retrieved reasoning paths, candidate answers, and type constraints.
+1. **Tail-type prediction**: predicts answer-side Freebase-style entity types for each question.
+2. **Ontology-guided bidirectional retrieval**: retrieves compact reasoning paths using predicted answer types and ontology relation signatures.
+3. **Iterative answer refinement**: uses DeepSeek to revise answers based on retrieved paths, candidate answers, and type constraints.
 
 The full pipeline is provided through two scripts:
 
@@ -17,21 +19,17 @@ scripts/train.sh
 scripts/infer.sh
 ```
 
+The training script builds tail-type supervision data from WebQSP and CWQ, merges them, and trains one unified tail-type prediction model. The inference script runs prediction, retrieval, and refinement on one selected dataset.
+
 ## Repository Structure
 
 ```text
 .
 ├── config/
-│   └── deepspeed_zero3_gcr.yml
+│   └── deepspeed_zero3.yml
 ├── datasets/
-│   └── .gitkeep
 ├── models/
-│   └── .gitkeep
 ├── prompts/
-│   ├── general_prompt.txt
-│   ├── llama2.txt
-│   ├── llama2_predict.txt
-│   └── qwen2.txt
 ├── scripts/
 │   ├── train.sh
 │   └── infer.sh
@@ -45,25 +43,20 @@ scripts/infer.sh
 │   │   ├── bidirectional_retrieval.py
 │   │   └── iterative_answer_refinement.py
 │   └── utils/
-│       ├── graph_utils.py
-│       ├── qa_utils.py
-│       ├── training_utils.py
-│       └── utils.py
-├── .env.example
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
 
-Generated files such as datasets, model checkpoints, and prediction outputs are not tracked by Git.
+Large files such as datasets, pretrained models, fine-tuned checkpoints, and generated outputs are not tracked by Git. Please download or generate them separately.
 
 ## Installation
 
 Create a Python environment:
 
 ```bash
-conda create -n orbit python=3.10 -y
-conda activate orbit
+conda create -n opienv python=3.10 -y
+conda activate opienv
 ```
 
 Install dependencies:
@@ -72,28 +65,27 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-For GPU training, make sure your local PyTorch, CUDA, and DeepSpeed versions are compatible with your hardware.
+For GPU training, make sure your PyTorch, CUDA, and DeepSpeed versions are compatible with your hardware.
 
 ## Data Preparation
 
-Place datasets under `datasets/`.
+The default pipeline supports **WebQSP** and **CWQ**.
 
-The expected dataset layout is:
+Prepare the following files under `datasets/`:
 
 ```text
 datasets/
-├── RoG-webqsp/
-│   └── data/
-├── RoG-cwq/
-│   └── data/
-├── MetaQA/
-│   └── data/
-└── ontology_triples_general_buquan_final.json
+├── RoG-webqsp/data/
+├── RoG-cwq/data/
+└── ontology_graph_freebase.json
 ```
 
-Each dataset should be loadable by Hugging Face `datasets.load_dataset`.
+The WebQSP and CWQ datasets can be prepared from:
 
-The ontology file should be a JSON list of triples:
+- RoG-WebQSP: https://huggingface.co/datasets/rmanluo/RoG-webqsp
+- RoG-CWQ: https://huggingface.co/datasets/rmanluo/RoG-cwq
+
+The ontology graph should be a JSON file of relation signatures:
 
 ```json
 [
@@ -103,129 +95,56 @@ The ontology file should be a JSON list of triples:
 
 ## Model Preparation
 
-Place the base LLM and Sentence-BERT model under `models/`.
+Prepare the required models under `models/`.
 
-Example:
+For inference, prepare:
 
 ```text
 models/
-├── Llama-2-7b-chat-hf/
+├── OPI_tail_types_llama2/
 └── all-mpnet-base-v2/
 ```
 
-The default training script assumes the base model path is:
+- Fine-tuned OPI tail-type model: https://huggingface.co/Daney/OPI
+- Sentence embedding model: https://huggingface.co/sentence-transformers/all-mpnet-base-v2
+
+For training from scratch, additionally prepare:
 
 ```text
-models/Llama-2-7b-chat-hf
+models/Llama-2-7b-chat-hf/
 ```
 
-The default path-ranking model is:
+- LLaMA-2-7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
 
-```text
-models/all-mpnet-base-v2
-```
+## Environment Variables
 
-You can override these paths through environment variables.
+The iterative answer refinement stage uses a DeepSeek-compatible API.
 
-## Training
-
-Run tail-type model training with:
-
-```bash
-DATASET=webqsp bash scripts/train.sh
-```
-
-Supported dataset names are:
-
-```bash
-DATASET=webqsp
-DATASET=cwq
-DATASET=metaqa
-```
-
-The training script performs three steps:
-
-1. build tail-type supervision data;
-2. convert supervision data into LLaMA-style instruction-tuning data;
-3. fine-tune the tail-type prediction model.
-
-Important configurable variables:
-
-```bash
-DATASET=webqsp
-DATA_ROOT=datasets
-OUTPUT_ROOT=outputs
-MODEL_ROOT=models
-CHECKPOINT_ROOT=checkpoints
-ONTOLOGY_PATH=datasets/ontology_triples_general_buquan_final.json
-BASE_MODEL=models/Llama-2-7b-chat-hf
-PROMPT_PATH=prompts/llama2.txt
-TRAIN_CONFIG=config/deepspeed_zero3_gcr.yml
-TAIL_MODEL_DIR=checkpoints/tail_type_model_webqsp
-BATCH_SIZE=4
-EPOCH=3
-GRADIENT_ACCUMULATION_STEPS=16
-```
-
-Example with custom paths:
-
-```bash
-DATASET=webqsp \
-BASE_MODEL=models/Llama-2-7b-chat-hf \
-TAIL_MODEL_DIR=checkpoints/tail_type_model_webqsp \
-bash scripts/train.sh
-```
-
-The trained model will be saved to:
-
-```text
-checkpoints/tail_type_model_<dataset>
-```
-
-## Inference
-
-Before running inference, configure an OpenAI-compatible API endpoint.
-
-You can either export environment variables:
+Export the following variables before running inference:
 
 ```bash
 export OPENAI_API_KEY=your_api_key_here
-export OPENAI_BASE_URL=https://api.openai.com/v1
-export OPENAI_MODEL=gpt-4o-mini
+export OPENAI_BASE_URL=your_deepseek_api_url
+export OPENAI_MODEL=DeepSeek-V3-250324
 ```
 
-or create a local `.env` file based on `.env.example`.
+Do not hard-code API keys in scripts or commit them to GitHub.
+
+## Inference
+
+If you use the released fine-tuned OPI model, you can run inference directly without training from scratch.
 
 Run the full inference pipeline:
 
 ```bash
+export OPENAI_API_KEY=your_api_key_here
+export OPENAI_BASE_URL=your_api_url
+export OPENAI_MODEL=DeepSeek-V3-250324
+
 DATASET=webqsp \
-TAIL_MODEL_DIR=checkpoints/tail_type_model_webqsp \
+TAIL_MODEL_DIR=models/OPI_tail_types_llama2 \
+SBERT_MODEL=models/all-mpnet-base-v2 \
 bash scripts/infer.sh
-```
-
-The inference script performs three steps:
-
-1. predict answer tail types;
-2. run ontology-guided bidirectional retrieval;
-3. run iterative answer refinement.
-
-Important configurable variables:
-
-```bash
-DATASET=webqsp
-DATA_ROOT=datasets
-OUTPUT_ROOT=outputs
-MODEL_ROOT=models
-CHECKPOINT_ROOT=checkpoints
-ONTOLOGY_PATH=datasets/ontology_triples_general_buquan_final.json
-PROMPT_PATH=prompts/llama2.txt
-SBERT_MODEL=models/all-mpnet-base-v2
-TAIL_MODEL_DIR=checkpoints/tail_type_model_webqsp
-TAIL_MODEL_NAME=tail_type_model_webqsp
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4o-mini
 ```
 
 Final prediction results are saved under:
@@ -234,61 +153,36 @@ Final prediction results are saved under:
 outputs/final_predictions/
 ```
 
-Intermediate outputs are saved under:
+## Training (Optional)
 
-```text
-outputs/tail_type_predictions/
-outputs/retrieval/
-```
+Training is optional if you use the released fine-tuned OPI model.
 
-## Output Files
-
-After inference, the main output directory contains:
-
-```text
-predictions.jsonl
-eval_summary.json
-eval_metrics_all.txt
-wrong_results.json
-```
-
-The `predictions.jsonl` file stores final predictions and intermediate iteration results.
-
-The `eval_summary.json` file stores evaluation metrics.
-
-The `wrong_results.json` file stores incorrectly answered samples for error analysis.
-
-## Environment Variables
-
-The scripts are designed to be configured through environment variables rather than editing the source code.
-
-Common examples:
+Run tail-type model training with:
 
 ```bash
-DATASET=webqsp
-DATA_ROOT=datasets
-OUTPUT_ROOT=outputs
-MODEL_ROOT=models
-CHECKPOINT_ROOT=checkpoints
-BASE_MODEL=models/Llama-2-7b-chat-hf
-TAIL_MODEL_DIR=checkpoints/tail_type_model_webqsp
-SBERT_MODEL=models/all-mpnet-base-v2
-OPENAI_MODEL=gpt-4o-mini
+bash scripts/train.sh
 ```
 
+The training script performs three steps:
 
-## Quick Start
+1. builds tail-type supervision data for both WebQSP and CWQ;
+2. converts the supervision data into LLaMA-style instruction-tuning data;
+3. merges the WebQSP and CWQ training data and fine-tunes one unified tail-type prediction model.
 
-### Optional: Training
+By default, the trained model is saved to:
 
-### Run inference:
+```text
+models/OPI_tail_types_llama2/
+```
 
-```bash
-export OPENAI_API_KEY=your_api_key_here
-export OPENAI_BASE_URL=https://api.openai.com/v1
-export OPENAI_MODEL=gpt-4o
+## Citation
 
-DATASET=webqsp \
-TAIL_MODEL_DIR=checkpoints/tail_type_model_webqsp \
-bash scripts/infer.sh
+If you find this repository useful, please cite our paper:
+
+```bibtex
+@misc{shan2026opi,
+  title  = {Ontology-Guided Evidence-Path Inference for Multi-Hop Knowledge Graph Question Answering},
+  author = {Shan, Yongxue and Wu, Meihan and Fang, Cundi and Peng, Jie and Wang, Xiaodong},
+  year   = {2026}
+}
 ```
