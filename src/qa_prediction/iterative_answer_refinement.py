@@ -1378,18 +1378,18 @@ def openai_generate_answers(data, args, mpnet_model=None):
     iter_limit = max(1, int(getattr(args, "iter_limit", 3)))
     refine_model = (getattr(args, "openai_refine_model", "") or "").strip() or args.openai_model
 
-    # # mpnet rerank reasoning paths
-    if mpnet_model is not None and reasoning_paths_str:
-        try:
-            bs = int(getattr(args, "mpnet_batch_size", 128))
-            reasoning_paths_str = rerank_paths_mpnet(
-                question=str(question or ""),
-                paths=[str(x) for x in reasoning_paths_str],
-                mpnet_model=mpnet_model,
-                batch_size=bs,
-            )
-        except Exception as e:
-            print(f"[WARN] mpnet rerank failed, keep original paths. err={repr(e)}", flush=True)
+    # # # mpnet rerank reasoning paths
+    # if mpnet_model is not None and reasoning_paths_str:
+    #     try:
+    #         bs = int(getattr(args, "mpnet_batch_size", 128))
+    #         reasoning_paths_str = rerank_paths_mpnet(
+    #             question=str(question or ""),
+    #             paths=[str(x) for x in reasoning_paths_str],
+    #             mpnet_model=mpnet_model,
+    #             batch_size=bs,
+    #         )
+    #     except Exception as e:
+    #         print(f"[WARN] mpnet rerank failed, keep original paths. err={repr(e)}", flush=True)
 
     forbidden_answers = []
     last_refine_feedback = ""
@@ -1793,7 +1793,7 @@ def main(args):
         rule_postfix += "_filter_empty"
     if args.each_line:
         rule_postfix += "_each_line"
-    rule_postfix += "qwen2_7B_ds_v3_250324_results_pred"
+    rule_postfix += "llama2_7B_ds_v3_250324_results_pred"
 
     print("Load dataset finished.")
     output_dir = os.path.join(args.predict_path, args.d, rule_postfix)
